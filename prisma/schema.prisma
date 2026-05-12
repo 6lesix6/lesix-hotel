@@ -1,0 +1,34 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Guest {
+  id              Int       @id @default(autoincrement())
+  customerName    String
+  roomNumber      String
+  reservationType String    @default("Daily") // DayUse | Daily | Monthly
+  startDate       DateTime
+  endDate         DateTime
+  status          String    @default("CheckedIn") // CheckedIn | CheckedOut
+  createdAt       DateTime  @default(now())
+  payments        Payment[]
+
+  @@map("guests")
+}
+
+model Payment {
+  id          Int      @id @default(autoincrement())
+  amountPaid  Float
+  paymentDate DateTime @default(now())
+  notes       String   @default("")
+  guestId     Int
+  guest       Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
