@@ -2,55 +2,44 @@
 import useSWR from 'swr'
 import type { Guest, DashboardStats } from '@/types'
 
-// Fetcher function for SWR
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
-// Hook for guests with real-time updates
 export function useRealtimeGuests() {
   const { data, error, isLoading, mutate } = useSWR('/api/guests', fetcher, {
-    refreshInterval: 3000, // Auto-refresh every 3 seconds
-    revalidateOnFocus: true, // Refresh when tab gets focus
-    revalidateOnReconnect: true, // Refresh when internet reconnects
-    dedupingInterval: 2000, // Don't refetch more than every 2 seconds
+    refreshInterval: 2000, // Every 2 seconds
+    revalidateOnFocus: true,
+    revalidateOnReconnect: true,
+    dedupingInterval: 1000, // Don't dedupe for 1 second
+    refreshWhenHidden: false, // Don't refresh when tab is hidden to save resources
   })
   
   return {
     guests: data?.data || [],
     loading: isLoading,
-    refresh: () => mutate(), // Manual refresh
-    error: error
+    refresh: () => {
+      console.log('Manual refresh guests triggered')
+      return mutate()
+    },
+    error
   }
 }
 
-// Hook for stats with real-time updates
 export function useRealtimeStats() {
   const { data, error, isLoading, mutate } = useSWR('/api/guests/stats', fetcher, {
-    refreshInterval: 3000, // Auto-refresh every 3 seconds
+    refreshInterval: 2000, // Every 2 seconds
     revalidateOnFocus: true,
     revalidateOnReconnect: true,
-    dedupingInterval: 2000,
+    dedupingInterval: 1000,
+    refreshWhenHidden: false,
   })
   
   return {
     stats: data?.data || null,
     loading: isLoading,
-    refresh: () => mutate(),
-    error: error
-  }
-}
-
-// Hook for payments with real-time updates
-export function useRealtimePayments() {
-  const { data, error, isLoading, mutate } = useSWR('/api/payments', fetcher, {
-    refreshInterval: 5000, // Auto-refresh every 5 seconds for payments
-    revalidateOnFocus: true,
-    revalidateOnReconnect: true,
-  })
-  
-  return {
-    payments: data?.data || [],
-    loading: isLoading,
-    refresh: () => mutate(),
-    error: error
+    refresh: () => {
+      console.log('Manual refresh stats triggered')
+      return mutate()
+    },
+    error
   }
 }
