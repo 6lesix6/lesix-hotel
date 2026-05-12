@@ -5,42 +5,93 @@ import { prisma } from '@/lib/prisma'
 export async function GET() {
   try {
     const totalRooms = Number(process.env.NEXT_PUBLIC_TOTAL_ROOMS ?? 45)
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-    const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999)
+    
+    // Set today's date range properly
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+    
+    const todayEnd = new Date()
+    todayEnd.setHours(23, 59, 59, 999)
 
-    console.log('Today range:', { todayStart, todayEnd })
-
-    const [checkedInGuests, totalGuests, todayCheckIns, todayPayments, allPayments] = await Promise.all([
-      prisma.guest.count({ where: { status: 'CheckedIn' } }),
+    // Get all data in parallel for performance
+    const [
+      checkedInGuests,
+      totalGuests,
+      todayCheckInsByStartDate,
+      todayPayments,
+      allPayments,
+      allGuestsWithDates
+    ] = await Promise.all([
+      // Currently checked in guests
+      prisma.guest.count({ 
+        where: { status: 'CheckedIn' } 
+      }),
+      
+      // Total guests ever
       prisma.guest.count(),
-      // FIX: Count by startDate, not createdAt
+      
+      // Guests who checked in today (based on startDate)
       prisma.guest.count({ 
         where: { 
-          startDate: { gte: todayStart, lte: todayEnd }
+          startDate: { 
+            gte: todayStart, 
+            lte: todayEnd 
+          }
         } 
       }),
+      
+      // Payments made today
       prisma.payment.aggregate({
         _sum: { amountPaid: true },
-        where: { paymentDate: { gte: todayStart, lte: todayEnd } },
+        where: { 
+          paymentDate: { 
+            gte: todayStart, 
+            lte: todayEnd 
+          }
+        },
       }),
-      prisma.payment.aggregate({ _sum: { amountPaid: true } }),
+      
+      // All payments ever
+      prisma.payment.aggregate({ 
+        _sum: { amountPaid: true } 
+      }),
+      
+      // Debug: Get all guests to verify
+      prisma.guest.findMany({
+        select: { id: true, customerName: true, status: true, startDate: true }
+      })
     ])
 
-    console.log('Stats results:', { checkedInGuests, totalGuests, todayCheckIns, todayPayments: todayPayments._sum.amountPaid })
+    // Debug logging
+    console.log('=== STATS DEBUG ===')
+    console.log('Total rooms configured:', totalRooms)
+    console.log('Checked in guests:', checkedInGuests)
+    console.log('Today check-ins (by startDate):', todayCheckInsByStartDate)
+    console.log('Today payments total:', todayPayments._sum.amountPaid)
+    console.log('All payments total:', allPayments._sum.amountPaid)
+    console.log('All guests in DB:', allGuestsWithDates)
+    console.log('==================')
 
-    return NextResponse.json({
+    const responseData = {
       success: true,
       data: {
         checkedInGuests,
         availableRooms: totalRooms - checkedInGuests,
-        todayCheckIns,
-        todayRevenue: todayPayments._sum.amountPaid ?? 0,
-        totalRevenue: allPayments._sum.amountPaid ?? 0,
+        todayCheckIns: todayCheckInsByStartDate,
+        todayRevenue: todayPayments._sum?.amountPaid ?? 0,
+        totalRevenue: allPayments._sum?.amountPaid ?? 0,
         totalGuests,
       },
-    })
-  } catch (e) {
-    console.error('Stats error:', e)
-    return NextResponse.json({ success: false, message: 'Stats error' }, { status: 500 })
+    }
+
+    console.log('Returning stats:', responseData)
+
+    return NextResponse.json(responseData)
+  } catch (error) {
+    console.error('Stats API Error:', error)
+    return NextResponse.json(
+      { success: false, message: 'Stats error', error: String(error) },
+      { status: 500 }
+    )
   }
 }
