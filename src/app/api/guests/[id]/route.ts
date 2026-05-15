@@ -1,14 +1,6 @@
 // src/lib/whatsapp.ts
 
-// ======================================================
-// TIMEZONE
-// ======================================================
-
 const BEIRUT_TIMEZONE = 'Asia/Beirut'
-
-// ======================================================
-// DATE FORMATTERS
-// ======================================================
 
 export function formatBeirut(date: Date): string {
   return new Intl.DateTimeFormat('en-GB', {
@@ -27,10 +19,6 @@ export function formatDateTime(date: Date): string {
   return formatBeirut(date)
 }
 
-// ======================================================
-// SAFE DATE + TIME COMBINER
-// ======================================================
-
 export function combineToISO(
   dateStr: string,
   timeStr: string
@@ -41,12 +29,10 @@ export function combineToISO(
 
   const parts = timeStr.split(':')
 
-  const hours = Number(parts[0] ?? 0)
-  const minutes = Number(parts[1] ?? 0)
-  const seconds = Number(parts[2] ?? 0)
+  const hours = Number(parts[0] || 0)
+  const minutes = Number(parts[1] || 0)
+  const seconds = Number(parts[2] || 0)
 
-  // LOCAL DATE CREATION
-  // avoids UTC parsing bugs
   const dt = new Date(
     year,
     month - 1,
@@ -56,13 +42,8 @@ export function combineToISO(
     seconds
   )
 
-  // stored in UTC
   return dt.toISOString()
 }
-
-// ======================================================
-// WHATSAPP HELPERS
-// ======================================================
 
 function getOwnerNumber(): string {
   const raw = process.env.OWNER_WHATSAPP_NUMBER
@@ -86,10 +67,6 @@ function makeLink(message: string): string {
   return `https://wa.me/${getOwnerNumber()}?text=${encode(message)}`
 }
 
-// ======================================================
-// CHECK-IN LINK
-// ======================================================
-
 export function getCheckInLink(guest: {
   customerName: string
   roomNumber: string
@@ -112,10 +89,6 @@ export function getCheckInLink(guest: {
 
   return makeLink(msg)
 }
-
-// ======================================================
-// PAYMENT LINK
-// ======================================================
 
 export function getPaymentLink(
   guest: {
@@ -142,10 +115,6 @@ export function getPaymentLink(
 
   return makeLink(msg)
 }
-
-// ======================================================
-// CHECK-OUT LINK
-// ======================================================
 
 export function getCheckOutLink(
   guest: {
