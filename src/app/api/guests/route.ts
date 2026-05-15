@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getCheckInLink } from '@/lib/whatsapp'
+import {
+  getCheckInLink,
+  formatBeirut,
+} from '@/lib/whatsapp'
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,22 +41,13 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const guestForLink = {
+    const whatsappLink = getCheckInLink({
       customerName: guest.customerName,
       roomNumber: guest.roomNumber,
       reservationType: guest.reservationType,
-
-      // Lebanon timezone
-      startDate: guest.startDate.toLocaleString('en-US', {
-        timeZone: 'Asia/Beirut',
-      }),
-
-      endDate: guest.endDate.toLocaleString('en-US', {
-        timeZone: 'Asia/Beirut',
-      }),
-    }
-
-    const whatsappLink = getCheckInLink(guestForLink)
+      startDate: guest.startDate,
+      endDate: guest.endDate,
+    })
 
     return NextResponse.json({
       success: true,
@@ -61,18 +55,11 @@ export async function POST(request: NextRequest) {
       data: {
         ...guest,
 
-        // Lebanon timezone
-        startDate: guest.startDate.toLocaleString('en-US', {
-          timeZone: 'Asia/Beirut',
-        }),
+        startDate: formatBeirut(guest.startDate),
 
-        endDate: guest.endDate.toLocaleString('en-US', {
-          timeZone: 'Asia/Beirut',
-        }),
+        endDate: formatBeirut(guest.endDate),
 
-        createdAt: guest.createdAt.toLocaleString('en-US', {
-          timeZone: 'Asia/Beirut',
-        }),
+        createdAt: formatBeirut(guest.createdAt),
       },
 
       whatsappLink,
@@ -97,17 +84,11 @@ export async function GET() {
     const formatted = guests.map(g => ({
       ...g,
 
-      startDate: g.startDate.toLocaleString('en-US', {
-        timeZone: 'Asia/Beirut',
-      }),
+      startDate: formatBeirut(g.startDate),
 
-      endDate: g.endDate.toLocaleString('en-US', {
-        timeZone: 'Asia/Beirut',
-      }),
+      endDate: formatBeirut(g.endDate),
 
-      createdAt: g.createdAt.toLocaleString('en-US', {
-        timeZone: 'Asia/Beirut',
-      }),
+      createdAt: formatBeirut(g.createdAt),
 
       totalPaid: g.payments.reduce(
         (sum, p) => sum + p.amountPaid,
