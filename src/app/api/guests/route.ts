@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCheckInLink } from '@/lib/whatsapp'
-import { formatInTimeZone } from 'date-fns-tz'
-
-const formatLebanon = (date: Date) =>
-  formatInTimeZone(date, 'Asia/Beirut', 'yyyy-MM-dd HH:mm:ss')
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,8 +44,13 @@ export async function POST(request: NextRequest) {
       reservationType: guest.reservationType,
 
       // Lebanon timezone
-      startDate: formatLebanon(guest.startDate),
-      endDate: formatLebanon(guest.endDate),
+      startDate: guest.startDate.toLocaleString('en-US', {
+        timeZone: 'Asia/Beirut',
+      }),
+
+      endDate: guest.endDate.toLocaleString('en-US', {
+        timeZone: 'Asia/Beirut',
+      }),
     }
 
     const whatsappLink = getCheckInLink(guestForLink)
@@ -61,9 +62,17 @@ export async function POST(request: NextRequest) {
         ...guest,
 
         // Lebanon timezone
-        startDate: formatLebanon(guest.startDate),
-        endDate: formatLebanon(guest.endDate),
-        createdAt: formatLebanon(guest.createdAt),
+        startDate: guest.startDate.toLocaleString('en-US', {
+          timeZone: 'Asia/Beirut',
+        }),
+
+        endDate: guest.endDate.toLocaleString('en-US', {
+          timeZone: 'Asia/Beirut',
+        }),
+
+        createdAt: guest.createdAt.toLocaleString('en-US', {
+          timeZone: 'Asia/Beirut',
+        }),
       },
 
       whatsappLink,
@@ -88,10 +97,17 @@ export async function GET() {
     const formatted = guests.map(g => ({
       ...g,
 
-      // Lebanon timezone
-      startDate: formatLebanon(g.startDate),
-      endDate: formatLebanon(g.endDate),
-      createdAt: formatLebanon(g.createdAt),
+      startDate: g.startDate.toLocaleString('en-US', {
+        timeZone: 'Asia/Beirut',
+      }),
+
+      endDate: g.endDate.toLocaleString('en-US', {
+        timeZone: 'Asia/Beirut',
+      }),
+
+      createdAt: g.createdAt.toLocaleString('en-US', {
+        timeZone: 'Asia/Beirut',
+      }),
 
       totalPaid: g.payments.reduce(
         (sum, p) => sum + p.amountPaid,
@@ -104,8 +120,6 @@ export async function GET() {
       data: formatted,
     })
   } catch (error) {
-    console.error(error)
-
     return NextResponse.json(
       { success: false, message: 'Failed to fetch guests' },
       { status: 500 }
