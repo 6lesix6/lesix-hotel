@@ -2,6 +2,10 @@
 
 const BEIRUT_TIMEZONE = 'Asia/Beirut'
 
+// ======================================================
+// DATE FORMATTERS
+// ======================================================
+
 export function formatBeirut(date: Date): string {
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: BEIRUT_TIMEZONE,
@@ -18,6 +22,10 @@ export function formatBeirut(date: Date): string {
 export function formatDateTime(date: Date): string {
   return formatBeirut(date)
 }
+
+// ======================================================
+// SAFE DATE + TIME COMBINER
+// ======================================================
 
 export function combineToISO(
   dateStr: string,
@@ -45,6 +53,10 @@ export function combineToISO(
   return dt.toISOString()
 }
 
+// ======================================================
+// WHATSAPP HELPERS
+// ======================================================
+
 function getOwnerNumber(): string {
   const raw = process.env.OWNER_WHATSAPP_NUMBER
 
@@ -66,6 +78,10 @@ function encode(text: string): string {
 function makeLink(message: string): string {
   return `https://wa.me/${getOwnerNumber()}?text=${encode(message)}`
 }
+
+// ======================================================
+// CHECK-IN LINK
+// ======================================================
 
 export function getCheckInLink(guest: {
   customerName: string
@@ -89,6 +105,10 @@ export function getCheckInLink(guest: {
 
   return makeLink(msg)
 }
+
+// ======================================================
+// PAYMENT LINK
+// ======================================================
 
 export function getPaymentLink(
   guest: {
@@ -115,6 +135,10 @@ export function getPaymentLink(
 
   return makeLink(msg)
 }
+
+// ======================================================
+// CHECK-OUT LINK
+// ======================================================
 
 export function getCheckOutLink(
   guest: {
