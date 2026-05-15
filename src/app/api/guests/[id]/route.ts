@@ -24,22 +24,20 @@ export function formatDateTime(date: Date): string {
 }
 
 // ======================================================
-// SAFE DATE + TIME COMBINER
+// SAFE DATE + TIME COMBINER (FIXED)
 // ======================================================
 
 export function combineToISO(
   dateStr: string,
   timeStr: string
 ): string {
-  const [year, month, day] = dateStr
-    .split('-')
-    .map(Number)
+  const [year, month, day] = dateStr.split('-').map(Number)
 
   const parts = timeStr.split(':')
 
-  const hours = Number(parts[0] || 0)
-  const minutes = Number(parts[1] || 0)
-  const seconds = Number(parts[2] || 0)
+  const hours = Number(parts[0] ?? 0)
+  const minutes = Number(parts[1] ?? 0)
+  const seconds = Number(parts[2] ?? 0)
 
   const dt = new Date(
     year,
@@ -64,7 +62,6 @@ function getOwnerNumber(): string {
     console.warn(
       'OWNER_WHATSAPP_NUMBER not set in .env.local, using fallback'
     )
-
     return '9613203545'
   }
 
