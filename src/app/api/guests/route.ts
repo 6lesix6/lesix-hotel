@@ -3,11 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getCheckInLink } from '@/lib/whatsapp'
 import { formatInTimeZone } from 'date-fns-tz'
 
-const TIMEZONE = 'Asia/Beirut'
-
-function formatLebanonDate(date: Date) {
-  return formatInTimeZone(date, TIMEZONE, 'yyyy-MM-dd HH:mm:ss')
-}
+const formatLebanon = (date: Date) =>
+  formatInTimeZone(date, 'Asia/Beirut', 'yyyy-MM-dd HH:mm:ss')
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,17 +26,11 @@ export async function POST(request: NextRequest) {
       !endDate
     ) {
       return NextResponse.json(
-        {
-          success: false,
-          message: 'Missing fields',
-        },
+        { success: false, message: 'Missing fields' },
         { status: 400 }
       )
     }
 
-    // Store dates in DB
-    // Make sure frontend sends:
-    // 2026-05-16T15:00:00+03:00
     const guest = await prisma.guest.create({
       data: {
         customerName,
@@ -51,15 +42,14 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // WhatsApp data
     const guestForLink = {
       customerName: guest.customerName,
       roomNumber: guest.roomNumber,
       reservationType: guest.reservationType,
 
-      // Lebanon formatted dates
-      startDate: formatLebanonDate(guest.startDate),
-      endDate: formatLebanonDate(guest.endDate),
+      // Lebanon timezone
+      startDate: formatLebanon(guest.startDate),
+      endDate: formatLebanon(guest.endDate),
     }
 
     const whatsappLink = getCheckInLink(guestForLink)
@@ -70,10 +60,10 @@ export async function POST(request: NextRequest) {
       data: {
         ...guest,
 
-        // Return Lebanon timezone
-        startDate: formatLebanonDate(guest.startDate),
-        endDate: formatLebanonDate(guest.endDate),
-        createdAt: formatLebanonDate(guest.createdAt),
+        // Lebanon timezone
+        startDate: formatLebanon(guest.startDate),
+        endDate: formatLebanon(guest.endDate),
+        createdAt: formatLebanon(guest.createdAt),
       },
 
       whatsappLink,
@@ -82,10 +72,7 @@ export async function POST(request: NextRequest) {
     console.error(error)
 
     return NextResponse.json(
-      {
-        success: false,
-        message: 'Failed to create guest',
-      },
+      { success: false, message: 'Failed to create guest' },
       { status: 500 }
     )
   }
@@ -94,22 +81,17 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   try {
     const guests = await prisma.guest.findMany({
-      include: {
-        payments: true,
-      },
-
-      orderBy: {
-        createdAt: 'desc',
-      },
+      include: { payments: true },
+      orderBy: { createdAt: 'desc' },
     })
 
     const formatted = guests.map(g => ({
       ...g,
 
       // Lebanon timezone
-      startDate: formatLebanonDate(g.startDate),
-      endDate: formatLebanonDate(g.endDate),
-      createdAt: formatLebanonDate(g.createdAt),
+      startDate: formatLebanon(g.startDate),
+      endDate: formatLebanon(g.endDate),
+      createdAt: formatLebanon(g.createdAt),
 
       totalPaid: g.payments.reduce(
         (sum, p) => sum + p.amountPaid,
@@ -125,10 +107,7 @@ export async function GET() {
     console.error(error)
 
     return NextResponse.json(
-      {
-        success: false,
-        message: 'Failed to fetch guests',
-      },
+      { success: false, message: 'Failed to fetch guests' },
       { status: 500 }
     )
   }
