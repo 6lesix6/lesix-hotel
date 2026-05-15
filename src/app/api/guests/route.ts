@@ -26,8 +26,8 @@ export async function POST(request: NextRequest) {
       customerName: guest.customerName,
       roomNumber: guest.roomNumber,
       reservationType: guest.reservationType,
-      startDate: guest.startDate.toISOString(),
-      endDate: guest.endDate.toISOString(),
+    startDate: guest.startDate,
+    endDate: guest.endDate,
     }
     const whatsappLink = getCheckInLink(guestForLink)
 
@@ -35,8 +35,8 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         ...guest,
-        startDate: guest.startDate.toISOString(),
-        endDate: guest.endDate.toISOString(),
+      startDate: guest.startDate,
+      endDate: guest.endDate,
         createdAt: guest.createdAt.toISOString(),
       },
       whatsappLink,
@@ -56,9 +56,9 @@ export async function GET() {
 
     const formatted = guests.map(g => ({
       ...g,
-      startDate: g.startDate.toISOString(),
-      endDate: g.endDate.toISOString(),
-      createdAt: g.createdAt.toISOString(),
+      startDate: g.startDate,
+      endDate: g.endDate,
+      createdAt: g.createdAt,
       totalPaid: g.payments.reduce((sum, p) => sum + p.amountPaid, 0),
     }))
 
