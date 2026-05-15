@@ -29,7 +29,6 @@ export function formatDateTime(date: Date): string {
 
 // ======================================================
 // SAFE DATE + TIME COMBINER
-// FIXES UTC / -3 HOURS BUG
 // ======================================================
 
 export function combineToISO(
@@ -46,9 +45,8 @@ export function combineToISO(
   const minutes = Number(parts[1] ?? 0)
   const seconds = Number(parts[2] ?? 0)
 
-  // IMPORTANT:
-  // Creates LOCAL date safely
-  // Avoids new Date('YYYY-MM-DD') UTC bug
+  // LOCAL DATE CREATION
+  // avoids UTC parsing bugs
   const dt = new Date(
     year,
     month - 1,
@@ -58,7 +56,7 @@ export function combineToISO(
     seconds
   )
 
-  // Store in UTC
+  // stored in UTC
   return dt.toISOString()
 }
 
