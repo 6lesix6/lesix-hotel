@@ -1,137 +1,188 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import {
-  getCheckOutLink,
-  formatBeirut,
-} from '@/lib/whatsapp'
+// src/lib/whatsapp.ts
 
-export async function GET(
-  _: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const id = Number(params.id)
+// ======================================================
+// TIMEZONE
+// ======================================================
 
-    const guest = await prisma.guest.findUnique({
-      where: { id },
-      include: {
-        payments: {
-          orderBy: { paymentDate: 'desc' },
-        },
-      },
-    })
+const BEIRUT_TIMEZONE = 'Asia/Beirut'
 
-    if (!guest) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Not found',
-        },
-        { status: 404 }
-      )
-    }
+// ======================================================
+// DATE FORMATTERS
+// ======================================================
 
-    const totalPaid = guest.payments.reduce(
-      (s, p) => s + p.amountPaid,
-      0
-    )
-
-    return NextResponse.json({
-      success: true,
-
-      data: {
-        ...guest,
-
-        startDate: formatBeirut(guest.startDate),
-
-        endDate: formatBeirut(guest.endDate),
-
-        createdAt: formatBeirut(guest.createdAt),
-
-        totalPaid,
-
-        payments: guest.payments.map(p => ({
-          ...p,
-          paymentDate: formatBeirut(p.paymentDate),
-        })),
-      },
-    })
-  } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        message: 'Error',
-      },
-      { status: 500 }
-    )
-  }
+export function formatBeirut(date: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: BEIRUT_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(date)
 }
 
-export async function DELETE(
-  _: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const id = Number(params.id)
+export function formatDateTime(date: Date): string {
+  return formatBeirut(date)
+}
 
-    const guest = await prisma.guest.findUnique({
-      where: { id },
-      include: { payments: true },
-    })
+// ======================================================
+// SAFE DATE + TIME COMBINER
+// FIXES UTC / -3 HOURS BUG
+// ======================================================
 
-    if (!guest) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Not found',
-        },
-        { status: 404 }
-      )
-    }
+export function combineToISO(
+  dateStr: string,
+  timeStr: string
+): string {
+  const [year, month, day] = dateStr
+    .split('-')
+    .map(Number)
 
-    if (guest.status === 'CheckedOut') {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Already checked out',
-        },
-        { status: 400 }
-      )
-    }
+  const parts = timeStr.split(':')
 
-    const totalPaid = guest.payments.reduce(
-      (s, p) => s + p.amountPaid,
-      0
+  const hours = Number(parts[0] ?? 0)
+  const minutes = Number(parts[1] ?? 0)
+  const seconds = Number(parts[2] ?? 0)
+
+  // IMPORTANT:
+  // Creates LOCAL date safely
+  // Avoids new Date('YYYY-MM-DD') UTC bug
+  const dt = new Date(
+    year,
+    month - 1,
+    day,
+    hours,
+    minutes,
+    seconds
+  )
+
+  // Store in UTC
+  return dt.toISOString()
+}
+
+// ======================================================
+// WHATSAPP HELPERS
+// ======================================================
+
+function getOwnerNumber(): string {
+  const raw = process.env.OWNER_WHATSAPP_NUMBER
+
+  if (!raw) {
+    console.warn(
+      'OWNER_WHATSAPP_NUMBER not set in .env.local, using fallback'
     )
 
-    const whatsappLink = getCheckOutLink({
-      customerName: guest.customerName,
-      roomNumber: guest.roomNumber,
-      reservationType: guest.reservationType,
-      startDate: guest.startDate,
-      endDate: guest.endDate,
-    }, totalPaid)
-
-    await prisma.guest.delete({
-      where: { id },
-    })
-
-    return NextResponse.json({
-      success: true,
-
-      message: `${guest.customerName} checked out from Room ${guest.roomNumber}. Total collected: $${totalPaid.toFixed(2)}`,
-
-      whatsappLink,
-    })
-  } catch (error) {
-    console.error(error)
-
-    return NextResponse.json(
-      {
-        success: false,
-        message: 'Check-out failed',
-      },
-      { status: 500 }
-    )
+    return '9613203545'
   }
+
+  return raw.replace(/\D/g, '')
+}
+
+function encode(text: string): string {
+  return encodeURIComponent(text)
+}
+
+function makeLink(message: string): string {
+  return `https://wa.me/${getOwnerNumber()}?text=${encode(message)}`
+}
+
+// ======================================================
+// CHECK-IN LINK
+// ======================================================
+
+export function getCheckInLink(guest: {
+  customerName: string
+  roomNumber: string
+  reservationType: string
+  startDate: Date
+  endDate: Date
+}): string {
+  const now = new Date()
+
+  const msg = `🏨 *Le Six Hotel — Check-In*
+─────────────────────────
+👤 Guest: ${guest.customerName}
+🚪 Room: ${guest.roomNumber}
+📋 Type: ${guest.reservationType}
+📅 Start: ${formatDateTime(guest.startDate)}
+📅 End: ${formatDateTime(guest.endDate)}
+─────────────────────────
+✅ Status: Checked In
+🕐 Time: ${formatDateTime(now)}`
+
+  return makeLink(msg)
+}
+
+// ======================================================
+// PAYMENT LINK
+// ======================================================
+
+export function getPaymentLink(
+  guest: {
+    customerName: string
+    roomNumber: string
+  },
+  payment: {
+    amountPaid: number
+    notes?: string | null
+  },
+  totalPaid: number
+): string {
+  const now = new Date()
+
+  const msg = `💳 *Le Six Hotel — Payment Received*
+─────────────────────────
+👤 Guest: ${guest.customerName}
+🚪 Room: ${guest.roomNumber}
+💰 Paid: $${payment.amountPaid.toFixed(2)}
+💵 Total Paid: $${totalPaid.toFixed(2)}
+📝 Notes: ${payment.notes || '—'}
+─────────────────────────
+🕐 Time: ${formatDateTime(now)}`
+
+  return makeLink(msg)
+}
+
+// ======================================================
+// CHECK-OUT LINK
+// ======================================================
+
+export function getCheckOutLink(
+  guest: {
+    customerName: string
+    roomNumber: string
+    reservationType: string
+    startDate: Date
+    endDate: Date
+  },
+  totalPaid: number
+): string {
+  const now = new Date()
+
+  const nights = Math.max(
+    1,
+    Math.round(
+      (guest.endDate.getTime() -
+        guest.startDate.getTime()) /
+        86400000
+    )
+  )
+
+  const msg = `🏁 *Le Six Hotel — Check-Out*
+─────────────────────────
+👤 Guest: ${guest.customerName}
+🚪 Room: ${guest.roomNumber}
+📋 Type: ${guest.reservationType}
+📅 Check-In: ${formatDateTime(guest.startDate)}
+📅 Original End: ${formatDateTime(guest.endDate)}
+📅 Check-Out: ${formatDateTime(now)}
+🌙 Duration: ${nights} night(s)
+💰 Total Collected: $${totalPaid.toFixed(2)}
+─────────────────────────
+✅ Room is now available
+🕐 Time: ${formatDateTime(now)}`
+
+  return makeLink(msg)
 }
