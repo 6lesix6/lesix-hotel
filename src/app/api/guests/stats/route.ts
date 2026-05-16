@@ -1,26 +1,42 @@
-// src/app/api/guests/stats/route.ts
+// app/api/guests/stats/route.ts
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+
+// Helper to get current date in Beirut timezone at start of day
+function getBeirutDateRange() {
+  // Get current time in Beirut timezone
+  const nowBeirut = new Date().toLocaleString('en-US', { timeZone: 'Asia/Beirut' })
+  const today = new Date(nowBeirut)
+  
+  // Start of day in Beirut (midnight)
+  const startOfDayBeirut = new Date(today)
+  startOfDayBeirut.setHours(0, 0, 0, 0)
+  
+  // End of day in Beirut (23:59:59.999)
+  const endOfDayBeirut = new Date(today)
+  endOfDayBeirut.setHours(23, 59, 59, 999)
+  
+  // Convert to UTC for database query (subtract 3 hours)
+  const startUTC = new Date(startOfDayBeirut.getTime() - (3 * 60 * 60 * 1000))
+  const endUTC = new Date(endOfDayBeirut.getTime() - (3 * 60 * 60 * 1000))
+  
+  return { startUTC, endUTC }
+}
 
 export async function GET() {
   try {
     const totalRooms = Number(process.env.NEXT_PUBLIC_TOTAL_ROOMS ?? 45)
     
-    // Set today's date range properly
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
+    const { startUTC, endUTC } = getBeirutDateRange()
     
-    const todayEnd = new Date()
-    todayEnd.setHours(23, 59, 59, 999)
+    console.log('Date range query (UTC):', { startUTC, endUTC })
 
-    // Get all data in parallel for performance
     const [
       checkedInGuests,
       totalGuests,
       todayCheckInsByStartDate,
       todayPayments,
       allPayments,
-      allGuestsWithDates
     ] = await Promise.all([
       // Currently checked in guests
       prisma.guest.count({ 
@@ -34,8 +50,8 @@ export async function GET() {
       prisma.guest.count({ 
         where: { 
           startDate: { 
-            gte: todayStart, 
-            lte: todayEnd 
+            gte: startUTC, 
+            lte: endUTC 
           }
         } 
       }),
@@ -45,8 +61,8 @@ export async function GET() {
         _sum: { amountPaid: true },
         where: { 
           paymentDate: { 
-            gte: todayStart, 
-            lte: todayEnd 
+            gte: startUTC, 
+            lte: endUTC 
           }
         },
       }),
@@ -55,36 +71,25 @@ export async function GET() {
       prisma.payment.aggregate({ 
         _sum: { amountPaid: true } 
       }),
-      
-      // Debug: Get all guests to verify
-      prisma.guest.findMany({
-        select: { id: true, customerName: true, status: true, startDate: true }
-      })
     ])
 
-    // Debug logging
-    console.log('=== STATS DEBUG ===')
-    console.log('Total rooms configured:', totalRooms)
-    console.log('Checked in guests:', checkedInGuests)
-    console.log('Today check-ins (by startDate):', todayCheckInsByStartDate)
-    console.log('Today payments total:', todayPayments._sum.amountPaid)
-    console.log('All payments total:', allPayments._sum.amountPaid)
-    console.log('All guests in DB:', allGuestsWithDates)
-    console.log('==================')
+    console.log('Stats calculated:', {
+      checkedInGuests,
+      todayCheckInsByStartDate,
+      todayRevenue: todayPayments._sum.amountPaid,
+    })
 
     const responseData = {
       success: true,
       data: {
         checkedInGuests,
-        availableRooms: totalRooms - checkedInGuests,
+        availableRooms: Math.max(0, totalRooms - checkedInGuests),
         todayCheckIns: todayCheckInsByStartDate,
         todayRevenue: todayPayments._sum?.amountPaid ?? 0,
         totalRevenue: allPayments._sum?.amountPaid ?? 0,
         totalGuests,
       },
     }
-
-    console.log('Returning stats:', responseData)
 
     return NextResponse.json(responseData)
   } catch (error) {
