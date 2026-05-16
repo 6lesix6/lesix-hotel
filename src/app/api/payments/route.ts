@@ -1,3 +1,4 @@
+// app/api/payments/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getPaymentLink } from '@/lib/whatsapp'
@@ -10,7 +11,10 @@ export async function GET() {
     })
     return NextResponse.json({
       success: true,
-      data: payments.map(p => ({ ...p, paymentDate: p.paymentDate.toISOString() })),
+      data: payments.map(p => ({ 
+        ...p, 
+        paymentDate: p.paymentDate.toISOString() 
+      })),
     })
   } catch (e) {
     return NextResponse.json({ success: false, message: 'Error' }, { status: 500 })
@@ -32,7 +36,11 @@ export async function POST(req: NextRequest) {
     }
 
     const payment = await prisma.payment.create({
-      data: { guestId: Number(guestId), amountPaid: Number(amountPaid), notes: notes ?? '' },
+      data: { 
+        guestId: Number(guestId), 
+        amountPaid: Number(amountPaid), 
+        notes: notes ?? '' 
+      },
     })
 
     const totalPaidAgg = await prisma.payment.aggregate({
@@ -55,8 +63,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: `$${amountPaid} recorded for ${guest.customerName}`,
-      data: { ...payment, paymentDate: payment.paymentDate.toISOString() },
-      whatsappLink, // 👈 frontend can use this to open WhatsApp
+      data: { 
+        ...payment, 
+        paymentDate: payment.paymentDate.toISOString() 
+      },
+      whatsappLink,
     }, { status: 201 })
   } catch (e) {
     console.error(e)
