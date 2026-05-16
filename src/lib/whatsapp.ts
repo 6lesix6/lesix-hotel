@@ -1,64 +1,46 @@
 // lib/whatsapp.ts
 
-// ======================================================
-// TIMEZONE HELPERS
-// ======================================================
+// ========== SHARED UTILITIES (safe for client & server) ==========
 
-const BEIRUT_TIMEZONE = 'Asia/Beirut'
-
-export function formatBeirut(date: Date): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: BEIRUT_TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
+// Helper to format date in Beirut timezone (UTC+3)
+function formatInBeirutTimezone(date: Date): string {
+  return date.toLocaleString('en-US', {
+    timeZone: 'Asia/Beirut',
     day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false,
-  }).format(date)
+    hour12: false
+  }).replace(/(\d+)\/(\d+)\/(\d+),/, '$1/$2/$3') // Remove comma from locale string
 }
 
 export function formatDateTime(date: Date): string {
-  return formatBeirut(date)
+  return formatInBeirutTimezone(date)
 }
 
-// SAFELY COMBINE DATE + TIME WITHOUT UTC BUGS
 export function combineToISO(dateStr: string, timeStr: string): string {
-  const [year, month, day] = dateStr.split('-').map(Number)
-
-  const [hours, minutes, seconds = '00'] = timeStr
-    .split(':')
-    .map(Number)
-
-  // LOCAL DATE CREATION (important)
-  const dt = new Date(
-    year,
-    month - 1,
-    day,
-    hours,
-    minutes,
-    seconds
-  )
-
-  return dt.toISOString()
+  // Create date in Beirut timezone
+  const [hours, minutes, seconds = '00'] = timeStr.split(':')
+  const dt = new Date(dateStr)
+  
+  // Get the date components in Beirut timezone
+  const beirutDate = new Date(dt.toLocaleString('en-US', { timeZone: 'Asia/Beirut' }))
+  beirutDate.setHours(parseInt(hours, 10), parseInt(minutes, 10), parseInt(seconds, 10))
+  
+  // Convert to UTC ISO string for storage
+  return new Date(beirutDate.getTime() - (3 * 60 * 60 * 1000)).toISOString()
 }
 
-// ======================================================
-// WHATSAPP HELPERS
-// ======================================================
+// ========== SERVER-ONLY FUNCTIONS (never called on client) ==========
 
 function getOwnerNumber(): string {
   const raw = process.env.OWNER_WHATSAPP_NUMBER
-
   if (!raw) {
-    console.warn(
-      'OWNER_WHATSAPP_NUMBER not set in .env.local, using fallback'
-    )
-
+    console.warn('OWNER_WHATSAPP_NUMBER not set in .env.local, using fallback')
     return '9613203545'
   }
-
   return raw.replace(/\D/g, '')
 }
 
@@ -70,50 +52,37 @@ function makeLink(message: string): string {
   return `https://wa.me/${getOwnerNumber()}?text=${encode(message)}`
 }
 
-// ======================================================
-// CHECK-IN
-// ======================================================
-
 export function getCheckInLink(guest: {
   customerName: string
   roomNumber: string
   reservationType: string
-  startDate: Date
-  endDate: Date
+  startDate: string | Date
+  endDate: string | Date
 }): string {
+  // Convert to Date objects if strings are passed
+  const start = typeof guest.startDate === 'string' ? new Date(guest.startDate) : guest.startDate
+  const end = typeof guest.endDate === 'string' ? new Date(guest.endDate) : guest.endDate
   const now = new Date()
-
+  
   const msg = `🏨 *Le Six Hotel — Check-In*
 ─────────────────────────
 👤 Guest: ${guest.customerName}
 🚪 Room: ${guest.roomNumber}
 📋 Type: ${guest.reservationType}
-📅 Start: ${formatDateTime(guest.startDate)}
-📅 End: ${formatDateTime(guest.endDate)}
+📅 Start: ${formatInBeirutTimezone(start)}
+📅 End: ${formatInBeirutTimezone(end)}
 ─────────────────────────
 ✅ Status: Checked In
-🕐 Time: ${formatDateTime(now)}`
-
+🕐 Time: ${formatInBeirutTimezone(now)}`
   return makeLink(msg)
 }
 
-// ======================================================
-// PAYMENT
-// ======================================================
-
 export function getPaymentLink(
-  guest: {
-    customerName: string
-    roomNumber: string
-  },
-  payment: {
-    amountPaid: number
-    notes?: string | null
-  },
+  guest: { customerName: string; roomNumber: string },
+  payment: { amountPaid: number; notes?: string | null },
   totalPaid: number
 ): string {
   const now = new Date()
-
   const msg = `💳 *Le Six Hotel — Payment Received*
 ─────────────────────────
 👤 Guest: ${guest.customerName}
@@ -122,48 +91,40 @@ export function getPaymentLink(
 💵 Total Paid: $${totalPaid.toFixed(2)}
 📝 Notes: ${payment.notes || '—'}
 ─────────────────────────
-🕐 Time: ${formatDateTime(now)}`
-
+🕐 Time: ${formatInBeirutTimezone(now)}`
   return makeLink(msg)
 }
-
-// ======================================================
-// CHECK-OUT
-// ======================================================
 
 export function getCheckOutLink(
   guest: {
     customerName: string
     roomNumber: string
     reservationType: string
-    startDate: Date
-    endDate: Date
+    startDate: string | Date
+    endDate: string | Date
   },
   totalPaid: number
 ): string {
+  const start = typeof guest.startDate === 'string' ? new Date(guest.startDate) : guest.startDate
+  const end = typeof guest.endDate === 'string' ? new Date(guest.endDate) : guest.endDate
   const now = new Date()
-
-  const nights = Math.max(
-    1,
-    Math.round(
-      (guest.endDate.getTime() - guest.startDate.getTime()) /
-        86400000
-    )
-  )
-
+  
+  // Calculate nights stayed (in Beirut timezone)
+  const startBeirut = new Date(start.toLocaleString('en-US', { timeZone: 'Asia/Beirut' }))
+  const nowBeirut = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Beirut' }))
+  const nights = Math.max(1, Math.round((nowBeirut.getTime() - startBeirut.getTime()) / 86400000))
+  
   const msg = `🏁 *Le Six Hotel — Check-Out*
 ─────────────────────────
 👤 Guest: ${guest.customerName}
 🚪 Room: ${guest.roomNumber}
 📋 Type: ${guest.reservationType}
-📅 Check-In: ${formatDateTime(guest.startDate)}
-📅 Original End: ${formatDateTime(guest.endDate)}
-📅 Check-Out: ${formatDateTime(now)}
+📅 Check-In: ${formatInBeirutTimezone(start)}
+📅 Check-Out: ${formatInBeirutTimezone(now)}
 🌙 Duration: ${nights} night(s)
 💰 Total Collected: $${totalPaid.toFixed(2)}
 ─────────────────────────
 ✅ Room is now available
-🕐 Time: ${formatDateTime(now)}`
-
+🕐 Time: ${formatInBeirutTimezone(now)}`
   return makeLink(msg)
 }
